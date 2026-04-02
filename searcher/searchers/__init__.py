@@ -8,6 +8,8 @@ from .base import BaseSearcher
 from .bm25_searcher import BM25Searcher
 from .custom_searcher import CustomSearcher
 from .faiss_searcher import FaissSearcher, ReasonIrSearcher
+from .hybrid_searcher import HybridSearcher
+from .exa_searcher import ExaSearcher
 from .google_searcher import GoogleSearcher
 
 class SearcherType(Enum):
@@ -16,11 +18,13 @@ class SearcherType(Enum):
     BM25 = ("bm25", BM25Searcher)
     FAISS = ("faiss", FaissSearcher)
     REASONIR = ("reasonir", ReasonIrSearcher)
+    HYBRID = ("hybrid", HybridSearcher)
     CUSTOM = (
         "custom",
         CustomSearcher,
     )  # Your custom searcher class, yet to be implemented
     GOOGLE = ("google", GoogleSearcher)
+    EXA = ("exa", ExaSearcher)
 
     def __init__(self, cli_name, searcher_class):
         self.cli_name = cli_name

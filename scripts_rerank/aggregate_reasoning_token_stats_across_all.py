@@ -41,6 +41,7 @@ def aggregate_token_stats(root_dir, output_csv):
                     output_details = token_stats.get('output_tokens_details', {})
                     if not output_details:
                         output_details = token_stats.get('completion_tokens_details', {})
+
                     total_reasoning_tokens = output_details.get('reasoning_tokens', 0)
                 else:
                     # It's a query line. Check if it has valid token usage stats.
@@ -91,3 +92,4 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     aggregate_token_stats(args.runs_dir, args.output_filename)
+

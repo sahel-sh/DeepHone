@@ -6,6 +6,7 @@ from scipy import stats
 import collections
 import re
 
+
 DEFAULT_OUTPUT_FILE = "aggregated_results.tsv"
 
 def calculate_ci(data):
@@ -170,6 +171,7 @@ def main():
             search = m_data['gpt-oss-120b']['search'] if m_data['gpt-oss-120b']['search'] else m_data['gpt-oss-20b']['search']
             
             row = [run_dir.replace(base_dir + "/", "")]
+
             row.append(f"{recall:.2f}")
             row.append(f"{search:.2f}")
             
