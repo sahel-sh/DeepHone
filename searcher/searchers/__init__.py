@@ -8,7 +8,7 @@ from .base import BaseSearcher
 from .bm25_searcher import BM25Searcher
 from .custom_searcher import CustomSearcher
 from .faiss_searcher import FaissSearcher, ReasonIrSearcher
-
+from .google_searcher import GoogleSearcher
 
 class SearcherType(Enum):
     """Enum for managing available searcher types and their CLI mappings."""
@@ -20,6 +20,7 @@ class SearcherType(Enum):
         "custom",
         CustomSearcher,
     )  # Your custom searcher class, yet to be implemented
+    GOOGLE = ("google", GoogleSearcher)
 
     def __init__(self, cli_name, searcher_class):
         self.cli_name = cli_name
