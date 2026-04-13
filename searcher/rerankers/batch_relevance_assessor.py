@@ -128,9 +128,9 @@ C) Diversity pressure:
 - Do NOT add extra passages once the answer can be reasonably inferred.
 
 D) Selection floor (anti-NONE rule):
-- If ANY passage shares key entities, concepts, or terminology with either query,
+- If ANY passage shares key entities, concepts, or terminology with any parts of the provided context,
 you MUST return at least 1 identifier. Prefer returning 2–3 passages if they appear even weakly related.
-- Return [NONE] ONLY if every passage is completely unrelated to BOTH queries,
+- Return [NONE] ONLY if every passage is completely unrelated to the provided context,
 with no shared entities, terminology, concepts, or background relevance.
 This situation should be rare.
 
@@ -482,11 +482,7 @@ class BatchRelevanceAssessorVLLM(BaseReranker):
         selected_indexes = []
         invocations_history = []
 
-        # Allow the model to select more docs per window than the final k so that
-        # recall across windows is not artificially capped.  We still truncate to k
-        # at the very end.
-        per_window_k = min(k * 3, self.window_size)
-        
+                
         # Process windows
         for i in range(
             0, min(len(retrieved_documents), self.first_stage_k), self.window_size
@@ -495,7 +491,7 @@ class BatchRelevanceAssessorVLLM(BaseReranker):
                 query,
                 retrieved_documents[i : i + self.window_size],
                 query_id,
-                per_window_k,
+                k,
                 reasoning=reasoning,
             )
             # Create Future and enqueue
@@ -504,8 +500,13 @@ class BatchRelevanceAssessorVLLM(BaseReranker):
             # Wait for result (Batcher handles this)
             raw_results, toks = fut.result()
             status, current_indexes = self._process_rerank_result(raw_results, i)
-            # Always accumulate selected indexes; never discard earlier windows.
-            selected_indexes.extend(current_indexes)
+            
+            if status == "stop":
+                # The current sub-query is fully answered by the passages in the current window, so we drop the rest of the passages.
+                selected_indexes = current_indexes
+            else:
+                selected_indexes.extend(current_indexes)
+            
             invocations_history.append({
                 "prompt": messages, "response": raw_results, "token_usage": toks
             })
