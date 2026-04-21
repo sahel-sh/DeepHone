@@ -5,7 +5,6 @@ import threading
 import time
 from concurrent.futures import Future
 from datetime import datetime
-from importlib.resources import files
 from typing import Any, Dict, List, Optional, Tuple
 from pathlib import Path
 import csv
@@ -38,7 +37,13 @@ class BatchListwiseRerankerVLLM(BaseReranker):
             "--prompt-template-path",
             type=str,
             default=None,
-            help="Optional path to a prompt template file, if None is provided, by default the rank_zephyr_template.yaml template will be used.",
+            help="Prompt template file to use when reranker prompt context is enabled.",
+        )
+        parser.add_argument(
+            "--prompt-template-path-no-context",
+            type=str,
+            default=None,
+            help="Prompt template file to use when --reranker-prompt-mode=none.",
         )
         parser.add_argument(
             "--window-size",
@@ -61,10 +66,11 @@ class BatchListwiseRerankerVLLM(BaseReranker):
         parser.add_argument(
             "--reranker-prompt-mode",
             type=str,
-            default="all_three",
-            choices=["query_sub", "sub_only", "sub_reason", "all_three"],
+            default="none",
+            choices=["none", "query_sub", "sub_only", "sub_reason", "all_three"],
             help=(
                 "Which external info to include in the reranker query text: "
+                "'none' (preserve the original reranker behavior), "
                 "'query_sub' (overall query + sub-query), "
                 "'sub_only' (sub-query only), "
                 "'sub_reason' (sub-query + reasoning), "
@@ -138,10 +144,25 @@ class BatchListwiseRerankerVLLM(BaseReranker):
         return queries
 
     def __init__(self, args):
-        prompt_template_path = args.prompt_template_path
+        prompt_template_path = (
+            args.prompt_template_path_no_context
+            if args.reranker_prompt_mode == "none"
+            else args.prompt_template_path
+        )
+        if not args.prompt_template_path and not args.prompt_template_path_no_context:
+            raise ValueError(
+                "One of --prompt-template-path or "
+                "--prompt-template-path-no-context must be provided."
+            )
         if not prompt_template_path:
-            prompt_template_path = (
-                files("rank_llm.rerank.prompt_templates") / "rank_zephyr_template.yaml"
+            missing_flag = (
+                "--prompt-template-path-no-context"
+                if args.reranker_prompt_mode == "none"
+                else "--prompt-template-path"
+            )
+            raise ValueError(
+                f"{missing_flag} is required when "
+                f"--reranker-prompt-mode={args.reranker_prompt_mode}."
             )
 
         model_coordinator = RankListwiseOSLLM(
@@ -353,6 +374,9 @@ class BatchListwiseRerankerVLLM(BaseReranker):
                     doc={"text": self._truncate_candidate_text(result["text"])},
                 )
             )
+        if self.prompt_mode == "none":
+            query = Query(text=query, qid=qid)
+            return Request(query=query, candidates=candidates)
         # Overall query from mapping (falls back to the provided sub-query)
         overall_query = ""
         try:
