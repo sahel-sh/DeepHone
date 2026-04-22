@@ -43,7 +43,7 @@ class BatchListwiseRerankerVLLM(BaseReranker):
             "--prompt-template-path-no-context",
             type=str,
             default=None,
-            help="Prompt template file to use when --reranker-prompt-mode=none.",
+            help="Prompt template file to use when --reranker-prompt-mode is omitted (default: no extra context).",
         )
         parser.add_argument(
             "--window-size",
@@ -66,11 +66,12 @@ class BatchListwiseRerankerVLLM(BaseReranker):
         parser.add_argument(
             "--reranker-prompt-mode",
             type=str,
-            default="none",
-            choices=["none", "query_sub", "sub_only", "sub_reason", "all_three"],
+            default=None,
+            required=False,
+            choices=[None, "query_sub", "sub_only", "sub_reason", "all_three"],
             help=(
-                "Which external info to include in the reranker query text: "
-                "'none' (preserve the original reranker behavior), "
+                "Optional. Which external info to include in the reranker query text. "
+                "Omit the flag to preserve the original reranker behavior. "
                 "'query_sub' (overall query + sub-query), "
                 "'sub_only' (sub-query only), "
                 "'sub_reason' (sub-query + reasoning), "
@@ -146,7 +147,7 @@ class BatchListwiseRerankerVLLM(BaseReranker):
     def __init__(self, args):
         prompt_template_path = (
             args.prompt_template_path_no_context
-            if args.reranker_prompt_mode == "none"
+            if args.reranker_prompt_mode is None
             else args.prompt_template_path
         )
         if not args.prompt_template_path and not args.prompt_template_path_no_context:
@@ -157,12 +158,12 @@ class BatchListwiseRerankerVLLM(BaseReranker):
         if not prompt_template_path:
             missing_flag = (
                 "--prompt-template-path-no-context"
-                if args.reranker_prompt_mode == "none"
+                if args.reranker_prompt_mode is None
                 else "--prompt-template-path"
             )
             raise ValueError(
                 f"{missing_flag} is required when "
-                f"--reranker-prompt-mode={args.reranker_prompt_mode}."
+                f"--reranker-prompt-mode={args.reranker_prompt_mode!r}."
             )
 
         model_coordinator = RankListwiseOSLLM(
@@ -183,7 +184,7 @@ class BatchListwiseRerankerVLLM(BaseReranker):
             self.candidate_max_tokens = args.candidate_max_tokens
         self.first_stage_k = args.first_stage_k
         # Prompt/context configuration (mirrors relevance assessor)
-        self.prompt_mode: str = args.reranker_prompt_mode
+        self.prompt_mode: Optional[str] = args.reranker_prompt_mode
         # Optional overall queries mapping for including "Overall Research Query"
         self.queries: Dict[str, str] = self._process_tsv_dataset(args.reranker_queries_tsv)
 
@@ -374,7 +375,7 @@ class BatchListwiseRerankerVLLM(BaseReranker):
                     doc={"text": self._truncate_candidate_text(result["text"])},
                 )
             )
-        if self.prompt_mode == "none":
+        if self.prompt_mode is None:
             query = Query(text=query, qid=qid)
             return Request(query=query, candidates=candidates)
         # Overall query from mapping (falls back to the provided sub-query)
