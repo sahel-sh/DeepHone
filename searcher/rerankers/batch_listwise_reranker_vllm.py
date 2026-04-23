@@ -61,10 +61,12 @@ class BatchListwiseRerankerVLLM(BaseReranker):
         parser.add_argument(
             "--reranker-prompt-mode",
             type=str,
-            default="all_three",
-            choices=["query_sub", "sub_only", "sub_reason", "all_three"],
+            default=None,
+            required=False,
+            choices=[None, "query_sub", "sub_only", "sub_reason", "all_three"],
             help=(
-                "Which external info to include in the reranker query text: "
+                "Optional. Which external info to include in the reranker query text. "
+                "Omit the flag to preserve the original reranker behavior. "
                 "'query_sub' (overall query + sub-query), "
                 "'sub_only' (sub-query only), "
                 "'sub_reason' (sub-query + reasoning), "
@@ -143,7 +145,6 @@ class BatchListwiseRerankerVLLM(BaseReranker):
             prompt_template_path = (
                 files("rank_llm.rerank.prompt_templates") / "rank_zephyr_template.yaml"
             )
-
         model_coordinator = RankListwiseOSLLM(
             model=args.reranker_model,
             context_size=args.context_size,
@@ -162,7 +163,7 @@ class BatchListwiseRerankerVLLM(BaseReranker):
             self.candidate_max_tokens = args.candidate_max_tokens
         self.first_stage_k = args.first_stage_k
         # Prompt/context configuration (mirrors relevance assessor)
-        self.prompt_mode: str = args.reranker_prompt_mode
+        self.prompt_mode: Optional[str] = args.reranker_prompt_mode
         # Optional overall queries mapping for including "Overall Research Query"
         self.queries: Dict[str, str] = self._process_tsv_dataset(args.reranker_queries_tsv)
 
@@ -353,6 +354,9 @@ class BatchListwiseRerankerVLLM(BaseReranker):
                     doc={"text": self._truncate_candidate_text(result["text"])},
                 )
             )
+        if self.prompt_mode is None:
+            query = Query(text=query, qid=qid)
+            return Request(query=query, candidates=candidates)
         # Overall query from mapping (falls back to the provided sub-query)
         overall_query = ""
         try:
