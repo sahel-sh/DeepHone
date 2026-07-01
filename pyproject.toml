@@ -1,7 +1,7 @@
 [project]
-name = "browsecomp-plus"
+name = "deephone"
 version = "0.1.0"
-description = "Add your description here"
+description = "Rerank Before You Reason: reranking + Effective Token Cost analysis for deep-search agents (BrowseComp-Plus fork)"
 requires-python = ">=3.10"
 dependencies = [
     "accelerate>=1.9.0",

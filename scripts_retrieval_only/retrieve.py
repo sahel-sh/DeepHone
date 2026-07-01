@@ -36,7 +36,7 @@ def process_queries(
     Processes queries in batches using retrieve_batch (dict[qid -> candidates]),
     optionally reranks per batch, and streams results to file to avoid OOM.
     """
-    batch_size = args.batch_size
+    batch_size = args.retrieval_batch_size
 
     if args.searcher_type == "bm25":
         searcher_model = "bm25"
@@ -49,11 +49,17 @@ def process_queries(
         searcher_model = args.searcher_type
 
     if getattr(args, "reranker_type", None):
-        filename = (
-            f"retrieve_{searcher_model}_k_{args.k}_"
-            f"rerank_{args.reranker_model.split('/')[-1]}_k_{args.first_stage_k}_"
-            f"w_{args.window_size}_rtb_{args.reasoning_token_budget}.trec"
-        )
+        rr = args.reranker_model.split("/")[-1]
+        parts = [
+            f"retrieve_{searcher_model}_k_{args.k}",
+            f"rerank_{rr}_k_{args.first_stage_k}",
+        ]
+        # Optional reranker-specific knobs (listwise has these; pointwise does not).
+        if getattr(args, "window_size", None) is not None:
+            parts.append(f"w_{args.window_size}")
+        if getattr(args, "reasoning_token_budget", None) is not None:
+            parts.append(f"rtb_{args.reasoning_token_budget}")
+        filename = "_".join(parts) + ".trec"
     else:
         filename = f"retrieve_{searcher_model}_k_{args.k}.trec"
 
@@ -73,19 +79,20 @@ def process_queries(
             batch = queries[start:end]
             batch_qids = [qid for qid, _ in batch]
             batch_qtexts = [qtext for _, qtext in batch]
-            retrieved = searcher.retrieve_batch(batch_qtexts, batch_qids, args.k)
             if reranker is not None:
-                Path(f"{args.output_dir}/invocaton_history").mkdir(
-                    parents=True, exist_ok=True
+                # Retrieve first_stage_k candidates, then rerank down to top-k per query.
+                first_stage_k = getattr(reranker, "first_stage_k", args.first_stage_k)
+                retrieved = searcher.retrieve_batch(
+                    batch_qtexts, batch_qids, first_stage_k
                 )
-                history_file_name = f"{args.output_dir}/invocaton_history/{filename[:-5]}_{start}_{end}.json"
-                batch_queries_dict = {qid: qtext for qid, qtext in batch}
-                rerank_results = reranker.rerank_batch(
-                    batch_queries_dict, retrieved, history_file_name, args.first_stage_k
-                )
-                retrieved = {}
-                for i, qid in enumerate(batch_qids):
-                    retrieved[qid] = rerank_results[i]
+                reranked = {}
+                for qid, qtext in batch:
+                    reranked[qid] = reranker.rerank(
+                        qtext, retrieved.get(qid, []), qid, args.k
+                    )
+                retrieved = reranked
+            else:
+                retrieved = searcher.retrieve_batch(batch_qtexts, batch_qids, args.k)
             for qid, _ in batch:
                 candidates = retrieved.get(qid, [])
                 for rank, cand in enumerate(candidates, start=1):
@@ -127,10 +134,11 @@ def main():
         help="Fixed number of search results to return for all queries (default: 5).",
     )
     parser.add_argument(
-        "--batch-size",
+        "--retrieval-batch-size",
         type=int,
         default=64,
-        help="The batch size used for retreival and optionally reranking. (default: 64).",
+        help="The batch size used for retrieval (queries per batch). (default: 64). "
+        "Reranking batch size is controlled by the reranker's own --batch-size.",
     )
     temp_args, _ = parser.parse_known_args()
     searcher_class = SearcherType.get_searcher_class(temp_args.searcher_type)

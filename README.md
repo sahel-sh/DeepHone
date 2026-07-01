@@ -16,6 +16,11 @@ reranker, and the agent, and measure the tradeoff with a new **Effective Token C
 substantially lower token cost. Small cross-encoder rerankers retain most of the accuracy gains at a
 fraction of the cost.
 
+<p align="center">
+  <img src="figures/teaser.png" alt="Accuracy gains vs. Effective Token Cost (paper Figure 2)" width="100%">
+  <br><em>Figure 2 — Accuracy improvement vs. Effective Token Cost for gpt-oss-20b/120b under low/medium/high reasoning and reranking depths d ∈ {0, 10, 20, 50}.</em>
+</p>
+
 > This repository is a fork of **BrowseComp-Plus** (Chen et al., 2025, arXiv 2508.06600). It keeps
 > BrowseComp-Plus's benchmark, retrievers, Deep-Research agent clients, and LLM-as-judge evaluation, and
 > **adds** the reranking integration and the ETC analysis used in our paper. Please cite **both** papers
